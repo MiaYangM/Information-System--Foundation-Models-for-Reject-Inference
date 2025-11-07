@@ -1,0 +1,6 @@
+venv/
+.vscode/
+.pkl
+.DS_Store
+__pycache__
+README.macos.md
