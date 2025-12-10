@@ -23,6 +23,9 @@ class DataGenerator:
                  bin_mean_con_dif = 0,
                  bin_var_bad_dif = 0,
                  bin_noise_var = 0.1,
+                 coef_scale = 1.0,     # multiply the label-generation coefficients (reduce to make task harder)
+                 noise_scale = 1.0,    # divide logits by this value to make probabilities closer to 0.5
+                 flip_frac = 0.0,
                  # rest
                  verbose = True,
                  seed = None,
@@ -35,6 +38,7 @@ class DataGenerator:
             'con_var_bad_dif': 0, 'covars': None,
             'bin_prob': 0.5, 'bin_mean_bad_dif': 0, 'bin_bad_ratio': 0.5,
             'bin_mean_con_dif': 0, 'bin_var_bad_dif': 0, 'bin_noise_var': 0.1,
+            'coef_scale': 1.0, 'noise_scale': 1.0, 'flip_frac': 0.0,
             'verbose': True, 'seed': None, 'replicate': None, 'data': []
         }
         
@@ -44,7 +48,7 @@ class DataGenerator:
         # Only keep parameters that differ from defaults
         self.user_params = {k: v for k, v in call_args.items() 
                         if k != 'self' and k in default_params and v != default_params[k]}
-
+        # core settings
         self.n = n
         self.k_con = k_con
         self.k_bin = k_bin
@@ -54,6 +58,12 @@ class DataGenerator:
         self.con_noise_var = con_noise_var
         self.con_var_bad_dif = con_var_bad_dif
         self.covars = covars
+        
+        # new signal/noise params
+        self.coef_scale = float(coef_scale)
+        self.noise_scale = float(noise_scale)
+        self.flip_frac = float(flip_frac)
+
         self.bin_prob = bin_prob
         self.bin_mean_bad_dif = bin_mean_bad_dif
         self.bin_bad_ratio = bin_bad_ratio
@@ -64,13 +74,7 @@ class DataGenerator:
         self.seed = seed
         self.replicate = replicate
 
-        self.data = []
-        self.con_params = {
-            'means': [], 
-            'covar': [],
-            'combo': []
-        }
-        self.args = {}
+        
             
 
     def args_update(self):
