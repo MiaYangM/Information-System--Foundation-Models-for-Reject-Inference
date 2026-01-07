@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 from scipy.special import expit as sigmoid
 
+
 class DataGenerator2:
     def __init__(self,
                  # number of samples, and variables
@@ -242,3 +243,98 @@ class DataGenerator2:
             print(f"coef_scale={self.coef_scale}, noise_scale={self.noise_scale}, flip_frac={self.flip_frac}")
 
         return df
+ 
+
+    
+
+    
+    def impose_selection(self,
+                     mode='MNAR',
+                     top_percent=None,
+                     beta_x=None,
+                     beta_y=1.0,
+                     alpha=1.0,
+                     target_accept_rate=None,
+                     probabilistic=True,
+                     stochastic=True,
+                     rng_seed=None):
+        """
+        Impose MAR/MNAR/MIXED selection on self.data and return (df_full, df_obs).
+        Place this method inside DataGenerator2 class.
+        """
+        if self.data is None:
+            raise ValueError("No data generated: call generate() first")
+
+    
+
+        rng = np.random.default_rng(self.seed if rng_seed is None else rng_seed)
+        df_full = self.data.copy().reset_index(drop=True)
+
+        # numeric Y column 0/1
+        if 'BAD' not in df_full.columns:
+            raise ValueError("Data missing 'BAD' column")
+        df_full['Y'] = df_full['BAD'].map({'GOOD':0, 'BAD':1}).astype(int)
+
+        # pick X columns (continuous features named X1..Xk by generator convention)
+        X_cols = [c for c in df_full.columns if c.startswith('X')]
+        if len(X_cols) == 0:
+            raise ValueError("No feature columns found (expected columns starting with 'X')")
+        X = df_full[X_cols].astype(float).values
+
+        # default beta_x if None
+        if beta_x is None:
+            rng_local = np.random.RandomState(int(self.seed or 0))
+            beta_x = rng_local.normal(scale=1.0, size=X.shape[1])
+
+        score_x = X.dot(np.asarray(beta_x))
+        score_y = beta_y * df_full['Y'].values.astype(float)
+
+        if mode == 'MAR':
+            score = score_x.copy()
+        elif mode == 'MNAR':
+            score = score_x + score_y
+        elif mode == 'MIXED':
+            score = (1.0 - alpha) * score_x + alpha * score_y
+        else:
+            raise ValueError("mode must be 'MAR','MNAR' or 'MIXED'")
+
+        # deterministic top-percent selection
+        if top_percent is not None:
+            thr = np.quantile(score, 1 - float(top_percent))
+            mask_accept = score >= thr
+            p_accept = None
+        else:
+            # probabilistic selection
+            logits = score - np.mean(score)
+            intercept = 0.0
+            if target_accept_rate is not None:
+                lo, hi = -50.0, 50.0
+                for _ in range(60):
+                    mid = 0.5 * (lo + hi)
+                    p = sigmoid(logits + mid)
+                    m = float(p.mean())
+                    if abs(m - float(target_accept_rate)) < 1e-6:
+                        intercept = mid
+                        break
+                    if m < target_accept_rate:
+                        lo = mid
+                    else:
+                        hi = mid
+                else:
+                    intercept = mid
+            prob = sigmoid(logits + intercept)
+            if stochastic:
+                mask_accept = rng.random(len(prob)) < prob
+            else:
+                # default to top 20% if no top_percent provided
+                thr = np.quantile(prob, 1 - (top_percent or 0.2))
+                mask_accept = prob >= thr
+            p_accept = prob
+
+        df_obs = df_full.copy()
+        df_obs['S'] = 0
+        df_obs.loc[mask_accept, 'S'] = 1
+        df_obs['Y_obs'] = df_obs['Y'].where(df_obs['S'] == 1, np.nan)
+        df_obs['p_accept'] = p_accept if p_accept is not None else df_obs['S'].astype(float)
+
+        return df_full, df_obs
