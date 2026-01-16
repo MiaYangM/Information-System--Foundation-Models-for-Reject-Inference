@@ -20,7 +20,7 @@ class DataGenerator2:
                  # binary variables
                  bin_prob = 0.5,
                  bin_mean_bad_dif = 0,
-                 bin_bad_ratio = 0.8,
+                 bin_bad_ratio = 0.5,
                  bin_mean_con_dif = 0,
                  bin_var_bad_dif = 0,
                  bin_noise_var = 0.1,
@@ -35,7 +35,7 @@ class DataGenerator2:
                  ):
 
         default_params = {
-            'n': 1000, 'k_con': 10, 'k_bin': 2, 'bad_ratio': 0.8,
+            'n': 1000, 'k_con': 10, 'k_bin': 2, 'bad_ratio': 0.5,
             'con_mean_bad_dif': 1, 'con_nonlinear': 0.5, 'con_noise_var': 0.1,
             'con_var_bad_dif': 0, 'covars': None,
             'bin_prob': 0.5, 'bin_mean_bad_dif': 0, 'bin_bad_ratio': 0.8,
@@ -48,6 +48,7 @@ class DataGenerator2:
         call_args = locals()
         self.user_params = {k: v for k, v in call_args.items()
                             if k != 'self' and k in default_params and v != default_params[k]}
+
 
         # core settings
         self.n = int(n)
@@ -87,15 +88,64 @@ class DataGenerator2:
             'combo': []
         }
         self.args = {}
+        
+       
+        self.user_params = {k: v for k, v in call_args.items()
+                    if k != 'self' and k not in ['replicate', 'default_params', 'call_args']
+                    and v != default_params.get(k)}
+
+        print(f"[DEBUG - Before args_update] Initial user_params: {self.user_params}")
+        self.args_update()
+        print(f"[DEBUG - After args_update] Updated user_params: {self.user_params}")
+
+ 
+    
 
 
+    # --- replace your existing args_update with this safer version ---
     def args_update(self):
-        if self.replicate is not None and hasattr(self.replicate, "args"):
+        # Copy (whitelist) attributes from replicate if provided,
+        # but do NOT copy internal/nested objects or overwrite explicit user overrides.
+        if self.replicate is not None:
+            print("[DEBUG] Replication enabled. Copying attributes from replicate...")
             for key, value in vars(self.replicate).items():
-             if hasattr(self, key):
-                setattr(self, key, value)
+                # Skip private / internal or complex nested attributes
+                if key.startswith("_"):
+                    continue
+                if key in ("user_params", "call_args", "default_params", "data", "args", "con_params"):
+                    continue
+                # Only set attribute if the current instance did not explicitly override it
+                if hasattr(self, key) and key not in self.user_params:
+                    setattr(self, key, value)
+                    print(f"[DEBUG] Attribute '{key}' replicated with value: {value}")
+                else:
+                    if hasattr(self, key):
+                        print(f"[DEBUG] Attribute '{key}' skipped due to user override ({self.user_params.get(key)})")
+
+        # Finally, apply explicitly user-provided parameters (they take precedence)
+        print("[DEBUG] Applying user-provided parameters...")
         for key, value in self.user_params.items():
             setattr(self, key, value)
+            print(f"[DEBUG] Overwriting/Setting user-param '{key}' to: {value}")
+
+        # Refresh user_params to reflect the final state (only keep keys that were explicitly provided)
+        self.user_params = {k: getattr(self, k) for k in self.user_params.keys()}
+        print(f"[DEBUG] Updated user_params: {self.user_params}")
+# ------------------------------------------------------------------------
+
+        # Apply explicitly user-provided parameters to override replicated values
+        print("[DEBUG] Applying user-provided parameters...")
+        for key, value in self.user_params.items():
+            setattr(self, key, value)
+            print(f"[DEBUG] Overwriting/Setting user-param '{key}' to: {value}")
+
+        # Refresh user_params to reflect the current instance's state
+        self.user_params = {key: getattr(self, key) for key in self.user_params.keys()}
+        print(f"[DEBUG] Updated user_params: {self.user_params}")
+
+        # Refresh user_params with updated instance values
+        self.user_params = {k: getattr(self, k) for k in self.user_params.keys()}
+        print(f"[DEBUG] Updated user_params: {self.user_params}")
 
     def args_summary(self):
         if self.replicate is not None:
