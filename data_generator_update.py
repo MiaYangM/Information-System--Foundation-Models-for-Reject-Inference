@@ -10,7 +10,7 @@ class DataGenerator2:
                  k_con = 10,
                  k_bin = 2,
                  # ratio
-                 bad_ratio = 0.5,
+                 bad_ratio = 0.8,
                  # continuous variables (these influence feature generation and can be used for default coefs)
                  con_mean_bad_dif = 1,
                  con_nonlinear = 0.5,
@@ -20,7 +20,7 @@ class DataGenerator2:
                  # binary variables
                  bin_prob = 0.5,
                  bin_mean_bad_dif = 0,
-                 bin_bad_ratio = 0.5,
+                 bin_bad_ratio = 0.8,
                  bin_mean_con_dif = 0,
                  bin_var_bad_dif = 0,
                  bin_noise_var = 0.1,
@@ -35,10 +35,10 @@ class DataGenerator2:
                  ):
 
         default_params = {
-            'n': 1000, 'k_con': 10, 'k_bin': 2, 'bad_ratio': 0.5,
+            'n': 1000, 'k_con': 10, 'k_bin': 2, 'bad_ratio': 0.8,
             'con_mean_bad_dif': 1, 'con_nonlinear': 0.5, 'con_noise_var': 0.1,
             'con_var_bad_dif': 0, 'covars': None,
-            'bin_prob': 0.5, 'bin_mean_bad_dif': 0, 'bin_bad_ratio': 0.5,
+            'bin_prob': 0.5, 'bin_mean_bad_dif': 0, 'bin_bad_ratio': 0.8,
             'bin_mean_con_dif': 0, 'bin_var_bad_dif': 0, 'bin_noise_var': 0.1,
             'coef_scale': 1.0, 'noise_scale': 1.0, 'flip_frac': 0.0,
             'verbose': True, 'seed': None, 'replicate': None, 'data': []
@@ -88,11 +88,12 @@ class DataGenerator2:
         }
         self.args = {}
 
+
     def args_update(self):
         if self.replicate is not None and hasattr(self.replicate, "args"):
-            for key, value in self.replicate.args.items():
+            for key, value in vars(self.replicate).items():
+             if hasattr(self, key):
                 setattr(self, key, value)
-
         for key, value in self.user_params.items():
             setattr(self, key, value)
 
@@ -187,6 +188,7 @@ class DataGenerator2:
 
         # target prevalence
         target = float(self.bad_ratio)
+        print(f"[DEBUG] Set bad_ratio: {self.bad_ratio}") 
         # simple bracket search for intercept
         lo, hi = -50.0, 50.0
         for _ in range(60):
